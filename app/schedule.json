@@ -1,0 +1,42 @@
+{
+  "schedules": [
+    {
+      "creds": {
+        "email": "avi.uziel@gmail.com",
+        "password": "avicf"
+      },
+      "classes": [
+        {
+          "box": "Atir-Yeda",
+          "day": "sunday",
+          "time": "06:00:00",
+          "class_type": "W.O.D"
+        },
+        {
+          "box": "Atir-Yeda",
+          "day": "monday",
+          "time": "06:00:00",
+          "class_type": "W.O.D"
+        },
+        {
+          "box": "Atir-Yeda",
+          "day": "tuesday",
+          "time": "06:00:00",
+          "class_type": "W.O.D"
+        },
+        {
+          "box": "Atir-Yeda",
+          "day": "thursday",
+          "time": "06:00:00",
+          "class_type": "W.O.D"
+        },
+        {
+          "box": "Atir-Yeda",
+          "day": "friday",
+          "time": "16:00:00",
+          "class_type": "W.O.D"
+        }
+      ]
+    }
+  ]
+}
