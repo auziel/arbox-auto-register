@@ -5,8 +5,6 @@ import pytest
 from pytest import fixture
 
 from app import app
-from app import arbox_api
-from arbox_api import ArboxApi
 
 
 @pytest.fixture()
