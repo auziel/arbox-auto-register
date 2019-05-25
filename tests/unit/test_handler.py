@@ -2,8 +2,11 @@ from collections import namedtuple
 import json
 
 import pytest
+from pytest import fixture
 
 from app import app
+from app import arbox_api
+from arbox_api import ArboxApi
 
 
 @pytest.fixture()
@@ -79,3 +82,27 @@ def test_lambda_handler(apigw_event, mocker):
 
     data = json.loads(ret["body"])
     assert data["message"] == "hello world"
+
+
+@fixture
+def schedule():
+    return {
+
+        "creds": {
+            "email": "avi.uziel@gmail.com",
+            "password": "avicf"
+        },
+        "classes": [
+            {
+                "box": "Atir-Yeda",
+                "day": "friday",
+                "time": "08:00:00",
+                "class_type": "W.O.D"
+            }
+        ]
+    }
+
+
+def test_schedule_one_class(schedule):
+    booked_classes_res = app.book_schedule(schedule)
+    print(booked_classes_res)

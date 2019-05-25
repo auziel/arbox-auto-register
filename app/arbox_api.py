@@ -79,3 +79,17 @@ class ArboxApi:
         req = Request('POST', url, data=data)
         prepped = self.session.prepare_request(req)
         return self.session.send(prepped)
+
+    def schedule_standby(self, schedule_id):
+        url = 'https://apiapp.arboxapp.com/index.php/api/v1/scheduleStandby/create'
+
+        data_dic = dict()
+        data_dic['membershipUserFk'] = self.membership_user
+        data_dic['scheduleFk'] = schedule_id
+        data_dic['userFk'] = self.user_id
+        data = json.dumps(data_dic)
+        print('Data = ' + data)
+
+        req = Request('POST', url, data=data)
+        prepped = self.session.prepare_request(req)
+        return self.session.send(prepped)
