@@ -1,7 +1,9 @@
+import concurrent
 import datetime
 import json
 import os
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -38,24 +40,33 @@ def date_of_day_in_next_week(day):
     return dates.get(day)
 
 
-def book_class(arbox_api, schedules):
-    booking_res = defaultdict(list)
-    for schedule in schedules:
-        class_date_str = date_of_day_in_next_week(schedule["day"]).strftime("%Y-%m-%d")
-        print('*** Trying to schedule ' + schedule["class_type"] + ' class for ' + schedule["day"] + ' at ' + schedule[
-            "time"])
+def book_a_class(creds, schedule):
+    ''' schedule one class, by using it in a thread we can parallel the calls to
+    all class schedule
+    '''
+    arbox_api = ArboxApi(creds['email'], creds)
+    if not arbox_api.login():
+        raise Exception("Login failed")
 
-        resp = arbox_api.schedule_by_date_list(class_date_str)
-        print('GET scheduleByDateList:' + str(resp.status_code))
-        if schedule['box'] == BOX_ATIR_YEDA_USER_SCHEDULE:
-            box_str = BOX_ATIR_YEDA_API
-        elif schedule['box'] == BOX_HATAAS_USER_SCHEDULE:
-            box_str = BOX_HATAAS_API
-        else:
-            print("Box input is wrong, skipping")
-            continue
+    class_date_str = date_of_day_in_next_week(schedule["day"]).strftime("%Y-%m-%d")
+    print('*** Trying to schedule: ' + creds['email'] + '; ' + schedule["class_type"] +
+          ' class for ' + schedule["day"] + ' at ' + schedule["time"])
 
-        day_schedule = resp.json()[box_str]
+    resp = arbox_api.schedule_by_date_list(class_date_str)
+    print('GET scheduleByDateList:' + str(resp.status_code))
+    print(str(class_date_str) + " res = " + str(resp.content))
+    if schedule['box'] == BOX_ATIR_YEDA_USER_SCHEDULE:
+        box_str = BOX_ATIR_YEDA_API
+    elif schedule['box'] == BOX_HATAAS_USER_SCHEDULE:
+        box_str = BOX_HATAAS_API
+    else:
+        print("Box input is wrong, skipping")
+        return 'bad input', None
+
+    res_tuple = ("NOT booked (Class doesn't exist)", str(schedule['day'] + ';' + schedule['time']), creds['email'])
+    day_schedule = resp.json()[box_str]
+    # Iterate all classes in day and find the one matching our class request
+    if len(day_schedule) > 0:
         for c in day_schedule[0]:
             if c['category'] == schedule['class_type'] and c['schedule']['time'] == schedule['time']:
                 print('Category: ' + c['category'])
@@ -68,28 +79,29 @@ def book_class(arbox_api, schedules):
                     class_info = (schedule['class_type'], schedule["day"], class_date_str, c['schedule']['time'])
                     if resp.status_code == 200:
                         msg = '+++ Successfully register'
-                        booking_res['Booked'].append(class_info)
+                        res_tuple =  'Booked', class_info, creds['email']
                     else:
-                        booking_res['NOT booked'].append(class_info)
                         msg = '--- Fail register'
-                else: # schedule for standby
+                        res_tuple = res_tuple = 'NOT booked', class_info, creds['email']
+
+                else:  # schedule for standby
                     resp = arbox_api.schedule_standby(c["schedule"]["id"])
                     print('POST scheduleStandby: {} {}'.format(str(resp.status_code), str(resp.content)))
                     class_info = (schedule['class_type'], schedule["day"], class_date_str, c['schedule']['time'])
                     if resp.status_code == 200:
                         msg = '+++ Successfully added to standby'
-                        booking_res['Standby'].append(class_info)
+                        res_tuple = 'Standby', class_info, creds['email']
                     else:
-                        booking_res['NOT booked'].append(class_info)
                         msg = '--- Fail register'
+                        res_tuple = 'NOT booked', class_info, creds['email']
 
                 print(msg + ' ' + class_date_str + '\n' +
                       date_of_day_in_next_week(schedule["day"]).strftime("%A") + ' at ' + schedule["time"])
 
-                # we found the class for this day, move to next class
                 break
 
-    return booking_res
+    # we found the class for this day, move to next class
+    return res_tuple
 
 
 def get_schedule():
@@ -105,20 +117,32 @@ def get_schedule():
     return data
 
 
-def book_schedule(schedule):
-    arbox_api = ArboxApi(schedule["creds"]["email"], schedule["creds"])
-    arbox_api.login()
-    booked_classes_res = book_class(arbox_api, schedule["classes"])
-    print(str(booked_classes_res))
+def book_all_users(all_schedule):
+    res_dict = defaultdict(list)
+    future_to_schedules = dict()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=7) as executor:
+        for user_schedule in all_schedule:
+            f = {executor.submit(book_a_class, user_schedule['creds'], schedule): schedule
+                                   for schedule in user_schedule['classes']}
+            future_to_schedules = {**f, **future_to_schedules}
 
-    slack_msg = "Booked successfully:\n" + str(booked_classes_res['Booked']) + \
-                "\nStandby:\n" + str(booked_classes_res['Standby']) + \
-                "\nFail to book:\n" + str(booked_classes_res['NOT booked'])
-    slack_payload = {"text": slack_msg}
-    res = requests.post('https://hooks.slack.com/services/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',
-                        data=json.dumps(slack_payload, indent=4))
-    print('post to slack result = ' + str(res))
-    return booked_classes_res
+    for future in concurrent.futures.as_completed(future_to_schedules):
+        schedule = future_to_schedules[future]
+        try:
+            data = future.result()
+        except Exception as exc:
+            print('%r generated an exception: %s' % (schedule, exc))
+        else:
+            res_dict[data[0]].append((data[1], data[2]))
+            print('%r page is %d bytes' % (schedule, len(data)))
+
+    return res_dict
+
+
+def send_slack_res(booking_res):
+    slack_payload = {"text": str(booking_res)}
+    return requests.post('https://hooks.slack.com/services/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',
+                         data=json.dumps(slack_payload, indent=4))
 
 
 def lambda_handler(event, context):
@@ -128,8 +152,10 @@ def lambda_handler(event, context):
         print('No schedule config file found')
         exit(1)
 
-    for schedule in schedule_config["schedules"]:
-        book_schedule(schedule)
+    booked_classes_res = book_all_users(schedule_config['schedules'])
+    res = send_slack_res(booked_classes_res)
+
+    print('post to slack result = ' + str(res))
 
 
 if __name__ == '__main__':

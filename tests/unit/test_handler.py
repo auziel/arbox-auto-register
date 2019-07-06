@@ -1,5 +1,6 @@
 from collections import namedtuple
 import json
+import pprint
 
 import pytest
 from pytest import fixture
@@ -64,43 +65,87 @@ def apigw_event():
     }
 
 
-def test_lambda_handler(apigw_event, mocker):
-
-    requests_response_mock = namedtuple("response", ["text"])
-    requests_response_mock.text = "1.1.1.1\n"
-
-    request_mock = mocker.patch.object(
-        app.requests, 'get', side_effect=requests_response_mock)
-
-    ret = app.lambda_handler(apigw_event, "")
-    assert ret["statusCode"] == 200
-
-    for key in ("message", "location"):
-        assert key in ret["body"]
-
-    data = json.loads(ret["body"])
-    assert data["message"] == "hello world"
-
-
 @fixture
 def schedule():
     return {
-
-        "creds": {
-            "email": "avi.uziel@gmail.com",
-            "password": "avicf"
-        },
-        "classes": [
+        "schedules": [
             {
-                "box": "Atir-Yeda",
-                "day": "friday",
-                "time": "08:00:00",
-                "class_type": "W.O.D"
+                "creds": {
+                    "email": "avi.uziel@gmail.com",
+                    "password": "avicf"
+                },
+                "classes": [
+                    {
+                        "box": "Atir-Yeda",
+                        "day": "thursday",
+                        "time": "06:00:00",
+                        "class_type": "W.O.D"
+                    },
+                    {
+                        "box": "Atir-Yeda",
+                        "day": "friday",
+                        "time": "09:00:00",
+                        "class_type": "W.O.D"
+                    }
+                ]
+            },
+            {
+                "creds": {
+                    "email": "anat.uziel@gmail.com",
+                    "password": "anatcf"
+                },
+                "classes": [
+                    {
+                        "box": "Atir-Yeda",
+                        "day": "thursday",
+                        "time": "12:00:00",
+                        "class_type": "W.O.D"
+                    },
+                    {
+                        "box": "Atir-Yeda",
+                        "day": "friday",
+                        "time": "12:00:00",
+                        "class_type": "W.O.D"
+                    }
+                ]
             }
         ]
     }
 
 
-def test_schedule_one_class(schedule):
-    booked_classes_res = app.book_schedule(schedule)
+@fixture()
+def slack_res():
+    return {"NOT booked": [(("W.O.D",
+                             "thursday",
+                             "2019-07-11",
+                             "06:00:00"),
+                            "avi.uziel@gmail.com"),
+                           (("W.O.D",
+                             "friday",
+                             "2019-07-12",
+                             "09:00:00"),
+                            "avi.uziel@gmail.com")],
+            "NOT booked (Class doesn\"t exist)": [("friday;12: 00:00",
+                                                   "anat.uziel@gmail.com"),
+                                                  ("thursday;12:00:00",
+                                                   "anat.uziel@gmail.com")]}
+
+
+def test_lambda_handler(apigw_event, mocker):
+    res = app.lambda_handler(None, None)
+    
+
+def test_schedule_two_class_one_user(schedule):
+    booked_classes_res = app.book_schedule_for_user(schedule['schedules'][0])
     print(booked_classes_res)
+
+
+def test_schedule_two_class_two_users(schedule):
+    booked_classes_res = app.book_all_users(schedule['schedules'])
+    pp = pprint.PrettyPrinter(indent=4)
+    pp.pprint(booked_classes_res)
+
+
+def test_slack_message(slack_res):
+    res = app.send_slack_res(slack_res)
+    assert res.status_code == 200
