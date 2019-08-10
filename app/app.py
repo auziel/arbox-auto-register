@@ -79,7 +79,7 @@ def book_a_class(creds, schedule):
                     class_info = (schedule['class_type'], schedule["day"], class_date_str, c['schedule']['time'])
                     if resp.status_code == 200:
                         msg = '+++ Successfully register'
-                        res_tuple =  'Booked', class_info, creds['email']
+                        res_tuple = 'Booked', class_info, creds['email']
                     else:
                         msg = '--- Fail register'
                         res_tuple = res_tuple = 'NOT booked', class_info, creds['email']
@@ -141,7 +141,7 @@ def book_all_users(all_schedule):
 
 def send_slack_res(booking_res):
     slack_payload = {"text": str(booking_res)}
-    return requests.post('https://hooks.slack.com/services/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',
+    return requests.post('https://hooks.slack.com/services/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',
                          data=json.dumps(slack_payload, indent=4))
 
 
