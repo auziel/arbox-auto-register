@@ -141,8 +141,7 @@ def book_all_users(all_schedule):
 
 def send_slack_res(booking_res):
     slack_payload = {"text": str(booking_res)}
-    return requests.post('https://hooks.slack.com/services/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',
-                         data=json.dumps(slack_payload, indent=4))
+    return requests.post(os.environ['SLACK_URL'], data=json.dumps(slack_payload, indent=4))
 
 
 def lambda_handler(event, context):
