@@ -2,8 +2,8 @@
   "schedules": [
     {
       "creds": {
-        "email": "avi.uziel@gmail.com",
-        "password": "avicf"
+        "email": "#{USER_EMAIL}",
+        "password": "#{USER_PWD}"
       },
       "classes": [
         {
